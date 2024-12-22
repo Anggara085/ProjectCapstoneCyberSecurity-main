@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script src="./js/crypto-js.js"></script>
+  <script src="./js/FileSaver.js"></script>
+  <script src="./js/decryptFromAES.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs/dist/tf.min.js"></script>
+  <meta charset="UTF-8">
+  <title>Decrypt</title>
+  <link rel="stylesheet" href="./css/style.css">
+</head>
+<body>
+  <h1 id="title">Decrypt your picture</h1>
+  <div class="zone">
+    <div id="dropZ">
+      <i class="fa fa-cloud-upload"></i>
+      <div>Drag and drop your file here</div>                    
+      <span>OR</span>
+      <div class="selectFile">       
+        <label for="file">Select file</label>                   
+        <input type="file" name="files[]" id="file" onchange="previewFile()">
+      </div>
+      <p>File size limit: 10 MB</p>
+    </div>
+  </div>
+
+  <div class="zone-image">
+    <textarea id="content" class="result" rows="20" cols="50"></textarea>
+    <label>
+      <input type="text" id="secret" placeholder="Enter your secret key">
+      <button onclick="decryptFromAES()">Decrypt</button>
+    </label>   
+  </div>
+
+  <script>
+    let model; // Menyimpan model
+
+    // Memuat model saat halaman dimuat
+    window.onload = async () => {
+      await loadModel();
+    };
+
+    // Fungsi untuk memuat model
+    async function loadModel() {
+      try {
+        console.log('Loading model...');
+        model = await tf.loadLayersModel('model/image_anomaly_detector/model.json'); // Ganti dengan path model Anda
+        console.log("Model loaded successfully:", model);
+      } catch (error) {
+        console.error("Error loading model:", error);
+      }
+    }
+
+    function previewFile() {
+      const content = document.querySelector('.result');
+      const [file] = document.querySelector('input[type=file]').files;
+      const reader = new FileReader();
+      reader.addEventListener("load", () => {
+        content.innerText = reader.result;
+      }, false);
+
+      if (file) {
+        reader.readAsText(file);
+      }
+    }
+
+    function decryptFromAES() {
+      var secretKey = document.getElementById('secret').value;
+      if (secretKey !== '') {
+        var fileName = "decrypted_image.jpg"; // Ganti dengan format file yang sesuai
+        var encryptedText = document.getElementById('content').value; // Pastikan ini adalah teks terenkripsi
+        console.log("Encrypted Text to Decrypt:", encryptedText); // Debugging
+
+        try {
+          // Decrypt the text using AES
+          var decryptedBytes = CryptoJS.AES.decrypt(encryptedText, secretKey);
+          var decryptedText = decryptedBytes.toString(CryptoJS.enc.Utf8);
+          console.log("Decrypted Text:", decryptedText); // Debugging
+
+          // Memastikan hasil dekripsi kembali menjadi string Base64
+          if (!decryptedText) {
+            throw new Error("Decryption failed. Invalid secret key or data.");
+          }
+
+          // Menambahkan prefix ke hasil dekripsi
+          var imgSrc = 'data:image/jpeg;base64,' + decryptedText; // Menambahkan prefix Base64
+
+          // Simpan file gambar yang didekripsi
+          var element = document.createElement('a');
+          var blob = new Blob([Uint8Array.from(atob(decryptedText), c => c.charCodeAt(0))], { type: 'image/jpeg' });
+          element.href = URL.createObjectURL(blob);
+          element.download = fileName;
+          element.style.display = 'none';
+          document.body.appendChild(element);
+          element.click();
+          document.body.removeChild(element);
+
+          // Memanggil fungsi prediksi setelah gambar didekripsi
+          predictImage(imgSrc);
+        } catch (err) {
+          alert("There is an error in your document or your secret key is wrong!");
+          console.error(err); // Log error ke konsol untuk debugging
+        }
+      } else {
+        alert("Please enter your secret key!");
+      }
+    }
+
+    async function predictImage(imageSrc) {
+      const img = new Image();
+      img.src = imageSrc;
+
+      img.onload = async () => {
+        // Lakukan preprocessing pada gambar sesuai dengan model yang digunakan
+        const tensorImg = tf.browser.fromPixels(img).resizeBilinear([224, 224]).expandDims(0).toFloat().div(tf.scalar(255)); // Ganti ukuran sesuai kebutuhan
+        const predictions = model.predict(tensorImg); // Prediksi menggunakan model
+
+        // Tampilkan hasil prediksi
+        predictions.print(); // Atau lakukan pemrosesan lebih lanjut pada prediksi
+      };
+
+      img.onerror = (error) => {
+        console.error("Error loading image for prediction:", error);
+      };
+    }
+  </script>
+</body>
+</html>

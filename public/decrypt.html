@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <script src="./js/crypto-js.js"></script>
+  <script src="./js/FileSaver.js"></script>
+  <meta charset="UTF-8">
+  <title>Decrypt</title>
+  <link rel="stylesheet" href="./css/style.css">
+</head>
+<body>
+  <h1 id="title">Decrypt your image</h1>
+  <div class="zone">
+    <div id="dropZ">
+      <i class="fa fa-cloud-upload"></i>
+      <div>Drag and drop your file here</div>                    
+      <span>OR</span>
+      <div class="selectFile">       
+        <label for="file">Select file</label>                   
+        <input type="file" name="files[]" id="file" onchange="previewFile()">
+      </div>
+      <p>File size limit: 10 MB</p>
+    </div>
+  </div>
+
+  <div class="zone-image">
+    <textarea id="content" class="result" rows="20" cols="50"></textarea>
+    <label>
+      <input type="text" id="secret" placeholder="Enter your 16-character secret key">
+      <button onclick="decryptFromAES()">Decrypt</button>
+    </label>   
+  </div>
+
+  <script>
+    function previewFile() {
+      const content = document.querySelector('.result');
+      const [file] = document.querySelector('input[type=file]').files;
+      const reader = new FileReader();
+      reader.addEventListener("load", () => {
+        content.innerText = reader.result;
+      }, false);
+
+      if (file) {
+        reader.readAsText(file); // Baca file .txt yang berisi data terenkripsi
+      }
+    }
+
+    function decryptFromAES() {
+      const secretKey = document.getElementById('secret').value;
+      const encryptedText = document.getElementById('content').value;
+
+      if (secretKey.length === 16) { // Pastikan panjang kunci 16 karakter
+        const formData = new FormData();
+        formData.append('encryptedData', encryptedText);  // Pastikan ini adalah string base64 terenkripsi
+        formData.append('secretKey', secretKey);
+
+        fetch('http://localhost:3000/decryptaes128', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('jwtToken')}`,
+          },
+          body: formData
+        })
+        .then(response => {
+          if (!response.ok) {
+            throw new Error('Failed to decrypt file. Please check the server or your token.');
+          }
+          return response.blob();
+        })
+        .then(blob => {
+          const element = document.createElement('a');
+          element.href = URL.createObjectURL(blob);
+          element.download = 'decrypted_image_basic.jpg'; // Nama file hasil dekripsi
+          element.click();
+          alert('File successfully decrypted and downloaded!');
+        })
+        .catch(error => alert('Error during decryption: ' + error.message));
+      } else {
+        // Alert jika panjang kunci tidak sesuai
+        alert("Please enter a 16-character secret key for decryption!");
+      }
+    }
+  </script>
+</body>
+</html>

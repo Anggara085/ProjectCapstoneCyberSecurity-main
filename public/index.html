@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Welcome</title>
+  <link rel="stylesheet" href="./css/style_dashboard.css">
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script> <!-- TensorFlow.js -->
+</head>
+<body>
+  <div class="container">
+    <div class="top"></div>
+    <div class="bottom"></div>
+    <div class="center">
+      <h2 style="font-size: 30px; text-align: center;">Triple AES (Advanced Encryption Standard)</h2>
+      
+            
+      <!-- Existing AES encryption/decryption buttons -->
+      <button onclick="location.href='./encryptaes256.html'">Encrypt 256 Super</button>
+      <button onclick="location.href='./decryptaes256.html'">Decrypt 256 Super</button>
+      <button onclick="location.href='./encrypt.html'">Encrypt</button>
+      <button onclick="location.href='./decrypt.html'">Decrypt</button>
+      <div id="tokenStatus">Fetching token...</div>
+      <h2>&nbsp;</h2>
+    </div>
+  </div>
+
+  <!-- JavaScript for TensorFlow.js and image prediction -->
+  <script>
+        // Function to fetch JWT token
+    async function fetchToken() {
+      try {
+        const response = await fetch('http://localhost:3000/token');
+        const data = await response.json();
+        localStorage.setItem('jwtToken', data.token); // Store token in localStorage
+      } catch (error) {
+        alert('Failed to fetch token: ' + error.message);
+      }
+    }
+
+    // Call fetchToken when the page loads
+    window.onload = fetchToken;
+
+    // Function to load the deep learning model
+    async function loadModel() {
+      const model = await tf.loadLayersModel('./model/image_anomaly_detector/model.json'); // Updated path
+      return model;
+    }
+
+    // Function to predict an image after it is uploaded
+    async function predictImage() {
+      document.getElementById('loadingMessage').style.display = 'block'; // Show loading message
+      const model = await loadModel(); // Load the pre-trained model
+
+      const imageInput = document.getElementById('imageInput').files[0]; // Get the uploaded image
+      if (!imageInput) {
+        alert('Please upload an image first!');
+        return;
+      }
+
+      const image = await loadImage(imageInput); // Convert image to tensor
+
+      // Check the image shape to ensure it's what the model expects
+      console.log("Image Tensor Shape:", image.shape);
+
+      // Check if image tensor is valid before making prediction
+      if (image.shape[0] !== 1 || image.shape[1] !== 224 || image.shape[2] !== 224 || image.shape[3] !== 3) {
+        alert('Image shape is incorrect! Expected [1, 224, 224, 3] but got ' + image.shape);
+        return;
+      }
+
+      const prediction = model.predict(image); // Make prediction using the model
+
+      // Get the prediction result and convert it to a human-readable format
+      const predictionResult = prediction.dataSync();
+      const predictedClass = predictionResult.indexOf(Math.max(...predictionResult)); // Assuming a classification task
+      
+      // Displaying the class index (or the class name if you have labels)
+      document.getElementById('predictionResult').innerText = `Prediction: Class ${predictedClass}, Confidence: ${predictionResult[predictedClass]}`;
+
+      document.getElementById('loadingMessage').style.display = 'none'; // Hide loading message
+    }
+
+    // Function to load image and convert it to a tensor
+    async function loadImage(file) {
+      const img = new Image();
+      img.src = URL.createObjectURL(file); // Create a URL for the uploaded image
+      await img.onload(); // Wait for the image to load
+
+      // Resize the image to the input size expected by the model (e.g., 224x224)
+      const tensor = tf.browser.fromPixels(img).resizeBilinear([224, 224]);
+
+      // Convert the tensor to float32 and normalize the tensor (divide by 255)
+      const normalizedTensor = tensor.toFloat().div(tf.scalar(255));
+
+      // Convert tensor to [batch_size, height, width, channels]
+      const batchedTensor = normalizedTensor.expandDims(0); // Add batch dimension (1, 224, 224, 3)
+
+      // Check if the tensor has the correct shape
+      console.log("Batched Tensor Shape:", batchedTensor.shape);
+
+      return batchedTensor; // Return the tensor with proper dimensions
+    }
+
+    async function updateTokenStatus() {
+      const token = localStorage.getItem('jwtToken');
+      document.getElementById('tokenStatus').innerText = token
+        ? 'Token fetched successfully!'
+        : 'Token fetching failed.';
+    }
+    window.onload = () => {
+      fetchToken().then(updateTokenStatus);
+    };
+  </script>
+</body>
+</html>
